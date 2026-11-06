@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass
 
 from ..ir.tac_generator import IRInstruction
@@ -34,6 +35,7 @@ class VirtualMachine:
         instructions: list[IRInstruction]
     ) -> ExecutionResult:
 
+        # Reiniciar el estado para cada ejecución.
         self.memory.reset()
         self.memory.push_stack_frame("main")
 
@@ -47,17 +49,34 @@ class VirtualMachine:
                 try:
                     self.execute_instruction(instruction)
 
+                # Errores propios de NEXUS y de memoria.
                 except (
                     ExecutionError,
-                    MemoryManagerError,
-                    ZeroDivisionError,
-                    TypeError
+                    MemoryManagerError
                 ) as error:
 
                     raise ExecutionError(
                         f"Instrucción {index + 1}: {error}"
                     ) from error
 
+                # Detectar división entre cero.
+                except ZeroDivisionError as error:
+
+                    raise ExecutionError(
+                        f"Instrucción {index + 1}: "
+                        "No se pudo realizar la operación: "
+                        "división entre cero."
+                    ) from error
+
+                # Detectar operaciones con tipos incompatibles.
+                except TypeError as error:
+
+                    raise ExecutionError(
+                        f"Instrucción {index + 1}: "
+                        f"No se pudo realizar la operación: {error}"
+                    ) from error
+
+            # Capturar la memoria antes de retirar el Stack Frame.
             snapshot = self.memory.snapshot()
 
             return ExecutionResult(
@@ -70,7 +89,7 @@ class VirtualMachine:
             )
 
         finally:
-            # Liberar el marco de ejecución principal.
+            # Liberar el marco principal al terminar la ejecución.
             if self.memory.stack:
                 self.memory.pop_stack_frame()
 
@@ -81,9 +100,11 @@ class VirtualMachine:
                 "Se recibió un operando vacío."
             )
 
+        # Resolver constantes.
         if operand.kind == "constant":
             return operand.value
 
+        # Resolver variables almacenadas en el Stack.
         if operand.kind == "variable":
 
             value = self.memory.obtener_local(operand.value)
@@ -95,6 +116,7 @@ class VirtualMachine:
 
             return value
 
+        # Resolver temporales.
         if operand.kind == "temporary":
 
             if operand.value not in self.temporaries:
@@ -115,6 +137,7 @@ class VirtualMachine:
                 "No se indicó dónde almacenar el resultado."
             )
 
+        # Asignar a una variable.
         if destination.kind == "variable":
 
             name = destination.value
@@ -126,6 +149,7 @@ class VirtualMachine:
 
             self.memory.actualizar_local(name, value)
 
+        # Asignar a un temporal.
         elif destination.kind == "temporary":
 
             self.temporaries[destination.value] = value
@@ -139,7 +163,7 @@ class VirtualMachine:
 
         operator = instruction.operator
 
-        # Declaración de variables en Stack.
+        # Declaración de variables.
         if operator == "DECLARE":
 
             name = instruction.result.value
