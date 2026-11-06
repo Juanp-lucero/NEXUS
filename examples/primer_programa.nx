@@ -1,0 +1,8 @@
+int numero1 = 10;
+int numero2 = 5;
+
+int resultado;
+
+resultado = numero1 + numero2 * 2;
+
+print(resultado);
